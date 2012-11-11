@@ -1,9 +1,9 @@
 local lg = love.graphics
 
-require("spriter")
+require("lovelyspriter")
 
 function love.load()
-  spriter = Spriter:new('testrun/testrun.scml', 'testrun/')
+  spriter = LovelySpriter:new('testrun/testrun.scml', 'testrun/')
   runAnim = spriter:getAnim("run")
 
   local w, h, f, v, a = lg.getMode()

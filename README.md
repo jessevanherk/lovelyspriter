@@ -12,8 +12,7 @@ Bugs
 
 Still very much in development.
 
-Uses middleclass at the moment but I'll update it later to remove that
-dependency.
+* Doesn't do tweening properly yet.
 
 
 Usage
@@ -40,3 +39,16 @@ function love.draw()
   runAnim:draw(350, 350)
 end
 ```
+
+
+Todo
+====
+
+* Remove middleclass dependency.
+* Write tests.
+* Add option to save/read SCML data from a lua cache – to improve load times.
+
+Contact
+=======
+
+Send feature request, bugs, feedback to @benhumphreys or via Github

@@ -3,8 +3,10 @@ local lg = love.graphics
 require("lovelyspriter")
 
 function love.load()
-  spriter = LovelySpriter:new('testrun/testrun.scml', 'testrun/')
-  runAnim = spriter:getAnim("run")
+  spriter = LovelySpriter:new('example_new/example.scml', 'example_new/')
+  --spriter = LovelySpriter:new('testrun/testrun.scml', 'testrun/')
+  runAnim = spriter:getAnim("Idle")
+  --runAnim = spriter:getAnim("run")
 
   local w, h, f, v, a = lg.getMode()
   local success = lg.setMode(w, h, f, not v, a)
@@ -19,7 +21,7 @@ function love.update(dt)
 end
 
 function love.draw()
-  runAnim:draw(350, 350)
+  runAnim:draw(150, 550)
 
   -- showfps
   lg.setColor(255,0,0,255)

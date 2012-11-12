@@ -16,7 +16,9 @@ local function getImage(folderId, imageId)
   return imageData[folderId .. '-' .. imageId]
 end
 
+
 LovelySpriter = class("LovelySpriter")
+LovelySpriter.VERSION = 4.1
 
 function LovelySpriter:initialize(xmlFile, customPathPrefix)
   local contents, size = love.filesystem.read(xmlFile)
@@ -26,6 +28,15 @@ function LovelySpriter:initialize(xmlFile, customPathPrefix)
   self.animations = {}
 
   self.imagePathPrefix = customPathPrefix or ''
+
+  local version = tonumber(string.sub(rawData[2].xarg.generator_version, 2))
+  if version > LovelySpriter.VERSION then
+    print("WARNING: File version (" .. version .. ") greater than " ..
+          "LovelySpriter (" .. LovelySpriter.VERSION .. "), bugs may ensue.")
+  elseif version < LovelySpriter.VERSION - 1 then
+    print("WARNING: File version (" .. version .. ") significantly earlier than " ..
+          "LovelySpriter (" .. LovelySpriter.VERSION .. "), bugs may ensue.")
+  end
   
   for i, v in ipairs(rawData[2]) do
     if v.label == "folder" then
@@ -46,6 +57,7 @@ function LovelySpriter:initialize(xmlFile, customPathPrefix)
 end
 
 function LovelySpriter:getAnim(name)
+  assert(self.animations[name], "Unknown animation '" .. name .. "'")
   return self.animations[name]
 end
 
@@ -81,7 +93,7 @@ function Animation:initialize(anim)
   -- Better name
   self.duration = anim.xarg.length or error("Duration required") -- in milliseconds
 
-  self.tween = true -- can turn this off
+  self.tween = false -- can turn this off
 
   self.currentTime     = 0
   self.currentKeyFrame = 0
@@ -131,7 +143,7 @@ function Animation:_parseMainline(mainline)
         local timelineId = tonumber(v2.xarg.id) + 1
         keyFrame.objects[objectId] = self.objectTimelines[objectId][keyFrameId]
           --timelineId = v2.xarg.timeline,
-        keyFrame.objects[objectId].zIndex = v2.xarg.z_index
+        keyFrame.objects[objectId].zIndex = tonumber(v2.xarg.z_index) or error("Z-index undef")
           --zIndex     = v2.xarg.z_index,
         --}
       else
@@ -153,6 +165,8 @@ function Animation:_parseObjectTimeline(timeline)
   for _, v in ipairs(timeline) do
     assert(v.label == "key", "Unknown child, expecting 'key', found '" .. v.label .. "'")
 
+    local spin = tonumber(v.xarg.spin or 1) -- -1 for counter-clockwise
+
     local keyFrameId = tonumber(v.xarg.id) + 1
 
     for _, v2 in ipairs(v) do
@@ -163,13 +177,14 @@ function Animation:_parseObjectTimeline(timeline)
 
       local objProps = v2.xarg
       self.objectTimelines[objectId][keyFrameId] = Object:new(
-        objProps.x,
-        objProps.y,
+        tonumber(objProps.x),
+        tonumber(objProps.y),
         tonumber(objProps.folder) + 1,
         tonumber(objProps.file) + 1,
-        objProps.pivot_x,
-        objProps.pivot_y,
-        objProps.angle
+        tonumber(objProps.pivot_x),
+        tonumber(objProps.pivot_y),
+        tonumber(objProps.angle),
+        spin
       )
     end
   end
@@ -267,7 +282,7 @@ function Animation._drawFrame(frame, x, y, r, sx, sy, ox, oy)
 
     -- Sort objects in z-depth order
     local objects = frame.objects
-    table.sort(objects, function(a, b) return a.zIndex > b.zIndex end)  
+    table.sort(objects, function(a, b) return a.zIndex < b.zIndex end)  
 
     for _, object in ipairs(objects) do
       object:draw()
@@ -280,9 +295,15 @@ end
 
 Object = class("Object")
 
-function Object:initialize(x, y, folderId, imageId, pivotX, pivotY, angle)
-  self.x        =  x or error("Need X")
-  self.y        = -y or error("Need Y") -- y goes upwards
+function Object:initialize(x, y, folderId, imageId, pivotX, pivotY, angle, spin)
+  self.x = x or 0
+  self.y = y or 0 -- example files have no y coord
+  self.y = -self.y -- Spriter y-axis is backwards
+  if not y then
+    print("WARNING: no Y component")
+  else
+    print(self.y)
+  end
 
   self.folderId = folderId or error("Need folder ID")
   self.imageId  = imageId  or error("Need image ID")
@@ -292,6 +313,8 @@ function Object:initialize(x, y, folderId, imageId, pivotX, pivotY, angle)
   self.pivotY   = 1 - (pivotY or 1)
 
   self.angle    = -1 * math.rad(angle or 0) -- counter-clockwise... ok
+
+  self.spin = spin or 1
 end
 
 function Object:draw()
@@ -322,10 +345,14 @@ function Object:draw()
     local pX = (img.width  * self.pivotX)
     local pY = (img.height * self.pivotY)
 
+    local r = self.angle
+    if self.spin == -1 then
+      r = r - (math.pi*2)
+    end
 
-    lg.translate(pX, pY)
-    lg.rotate(self.angle)
-    lg.translate(-pX, -pY)
+    --lg.translate(pX, pY)
+    --lg.rotate(self.angle)
+    --lg.translate(-pX, -pY)
 
     lg.setColor(0,255,0,128)
     lg.rectangle('line', self.x, self.y, img.width, img.height)
@@ -338,8 +365,8 @@ function Object:draw()
 
     -- TODO: Rotation
     lg.setColor(255,255,255,255)
-    lg.draw(img.image, self.x, self.y) --, 0, img.scaleX, img.scaleY) --, self.angle)
-    --lg.draw(img.image, self.x, self.y, self.angle, 1, 1, pX, pY) --, 0, img.scaleX, img.scaleY) --, self.angle)
+    --lg.draw(img.image, self.x, self.y) --, 0, img.scaleX, img.scaleY) --, self.angle)
+    lg.draw(img.image, self.x, self.y, r, 1, 1, pX, pY) --, 0, img.scaleX, img.scaleY) --, self.angle)
   lg.pop()
 end
 
@@ -364,21 +391,37 @@ local function shortestAngle(from, to)
 	return angle
 end
 
+local function rotation(from, to, direction)
+  local pi2 = math.pi * 2
+  local pi =  math.pi
+
+  local diff = to - from
+  if direction == 1 then -- clockwise
+    if diff > 0 then
+      to = to - pi2
+    end
+  else -- counterclockwise
+    if diff < 0 then
+      to = to + pi2
+    end
+  end
+
+	return to
+end
+
 function Object:tween(o2, percent, method)
   method = method or "linear"
   assert(method == "linear", "Other tweening methods not yet supported")
-  assert(o2.imageId == self.imageId, "Can't tween between different images")
-
-  local short = shortestAngle(self.angle, o2.angle)
+  --assert(o2.imageId == self.imageId, "Can't tween between different images: " .. self.imageId .. ' and ' .. o2.imageId)
 
   return Object:new(
     mix(self.x, o2.x, percent),
     mix(self.y, o2.y, percent),
-    self.folderId,
-    self.imageId,
+    o2.folderId,
+    o2.imageId,
     pivotX, --mix(self.pivotX, o2.pivotX, percent),
     pivotY, --mix(self.pivotY, o2.pivotY, percent),
-    mix(self.angle, self.angle+short, percent)
+    mix(self.angle, rotation(self.angle, o2.angle, self.spin), percent)
   )
 end
 

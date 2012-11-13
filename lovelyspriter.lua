@@ -25,10 +25,7 @@ function LovelySpriter:initialize(xmlFile, customPathPrefix)
 
   local rawData = collect(contents)
 
-  self.animations = {}
-
-  self.imagePathPrefix = customPathPrefix or ''
-
+  -- Check the file isn't too old or newer than us
   local version = tonumber(string.sub(rawData[2].xarg.generator_version, 2))
   if version > LovelySpriter.VERSION then
     print("WARNING: File version (" .. version .. ") greater than " ..
@@ -37,6 +34,10 @@ function LovelySpriter:initialize(xmlFile, customPathPrefix)
     print("WARNING: File version (" .. version .. ") significantly earlier than " ..
           "LovelySpriter (" .. LovelySpriter.VERSION .. "), bugs may ensue.")
   end
+
+  self.animations = {}
+
+  self.imagePathPrefix = customPathPrefix or ''
   
   for i, v in ipairs(rawData[2]) do
     if v.label == "folder" then
@@ -48,6 +49,9 @@ function LovelySpriter:initialize(xmlFile, customPathPrefix)
       for i, v in ipairs(entity) do
         assert(v.label == "animation", "Unknown child, expecting 'animation', found '" .. v.label .. "'")
         local a = Animation:new(v)
+        if self.animations[a.name] then
+          error("Multiple animations with the same name: " .. a.name)
+        end
         self.animations[a.name] = a
       end
     else

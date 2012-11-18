@@ -1,4 +1,4 @@
-function parseargs(s)
+local function parseargs(s)
   local arg = {}
   string.gsub(s, "([%w_]+)=([\"'])(.-)%2", function (w, _, a)
     arg[w] = a
@@ -6,7 +6,7 @@ function parseargs(s)
   return arg
 end
     
-function collect(s)
+local function collect(s)
   local stack = {}
   local top = {}
   table.insert(stack, top)
@@ -47,3 +47,4 @@ function collect(s)
   return stack[1]
 end
 
+return { collect = collect }

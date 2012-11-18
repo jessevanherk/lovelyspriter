@@ -20,6 +20,9 @@ end
 LovelySpriter = class("LovelySpriter")
 LovelySpriter.VERSION = 4.1
 
+-- Debugging
+LovelySpriter.DRAW_BOUNDING = false
+LovelySpriter.DRAW_PIVOT_POINT = false
 
 function LovelySpriter:initialize(xmlFile, customPathPrefix)
   local contents, size = love.filesystem.read(xmlFile)
@@ -248,8 +251,6 @@ end
 
 
 function Animation._drawFrame(frame, x, y, r, sx, sy, ox, oy)
-  assert(frame, "need frame")
-
 	r  = r  or 0
 	sx = sx or 1
 	sy = sy or sx
@@ -300,114 +301,45 @@ function Animation._drawTweenedFrames(frame1, frame2, percent, x, y, r, sx, sy, 
 
     for i = 1, #objects1 do
       tweened = Animation.tweenObject(objects1[i], objects2[i], percent)
-      --print(objects1[i])
-      --print(objects2[i])
-      --print(percent)
-      --print(tweened)
-      --print("------------")
       Animation.drawObject(tweened)
     end
 	lg.pop()
-  
 end
-
-
-
---function Object:initialize(x, y, folderId, imageId, pivotX, pivotY, angle, spin)
-  --self.x = x or 0
-  --self.y = y or 0 -- example files have no y coord
-  --self.y = -self.y -- Spriter y-axis is backwards
-
-  --if not y then
-    --print("WARNING: no Y component")
-  --end
-
-  --self.folderId = folderId or error("Need folder ID")
-  --self.imageId  = imageId  or error("Need image ID")
-  
-  ---- SCML pivot is range 0--1, bottom-left is 0,0
-  --self.pivotX   = pivotX or 0
-  --self.pivotY   = 1 - (pivotY or 1)
-
-  --self.angle    = -1 * math.rad(angle or 0) -- counter-clockwise... ok
-
-  --self.spin = spin or 1
---end
-
 
 
 -------------------------------------------------------------------------------
 
-Object = class("Object")
-
-
 function Animation.drawObject(object)
-  lg.setPointSize(5)
-
   local img = getImage(object.folderId, object.imageId)
-  --if object.imageId ~= 1 then return end
-
-  lg.setColor(0,255,0,128)
-  lg.rectangle('line', object.x, object.y, img.width, img.height)
-
-  lg.setColor(0,255,255,255)
-  lg.point(0, 0)
-
-  lg.setColor(0,255,0,255)
-  lg.point(object.x, object.y)
 
   lg.push()
-    --local pX = object.x + (img.width  * object.pivotX)
-    --local pY = object.y + (img.height * object.pivotY)
+    if LovelySpriter.DRAW_BOUNDING then
+      lg.setColor(0,255,0,128)
+      lg.rectangle('line', object.x, object.y, img.width, img.height)
+    end
+
+    if LovelySpriter.DRAW_PIVOT_POINT then
+      lg.setPointSize(5)
+      lg.setColor(255,0,255,255)
+      lg.point(object.pivotX, object.pivotY)
+    end
+
     local pX = (img.width  * object.pivotX)
     local pY = (img.height * object.pivotY)
 
     local r = object.angle
-    if object.spin == -1 then
+    if object.spinDir == -1 then
       r = r - (math.pi*2)
     end
 
-    --lg.translate(pX, pY)
-    --lg.rotate(object.angle)
-    --lg.translate(-pX, -pY)
-
-    lg.setColor(0,255,0,128)
-    lg.rectangle('line', object.x, object.y, img.width, img.height)
-    --print(pX, pY)
-    lg.setColor(255,0,0,255)
-    lg.point(pX, pY)
-
-    lg.setColor(255,0,255,255)
-    lg.point(object.pivotX, object.pivotY)
-
-    -- TODO: Rotation
     lg.setColor(255,255,255,255)
-    --lg.draw(img.image, self.x, self.y) --, 0, img.scaleX, img.scaleY) --, self.angle)
-    lg.draw(img.image, object.x, object.y, r, 1, 1, pX, pY) --, 0, img.scaleX, img.scaleY) --, self.angle)
+    lg.draw(img.image, object.x, object.y, r, 1, 1, pX, pY)
   lg.pop()
 end
 
 
 local function mix(a, b, ratio)
 	return a * (1 - ratio) + b * ratio
-end
-
-
-local function shortestAngle(from, to)
-  local pi2 = math.pi * 2
-  local pi  = math.pi
-
-	from = from % pi2
-	to   = to   % pi2
-
-	local angle = to - from
-	if pi < angle then
-		angle = angle - pi2
-	elseif angle < -pi then
-		angle= angle + pi2
-	end
-
-	return angle
 end
 
 
@@ -433,7 +365,6 @@ end
 function Animation.tweenObject(o1, o2, percent, method)
   method = method or "linear"
   assert(method == "linear", "Other tweening methods not yet supported")
-  --assert(o2.imageId == self.imageId, "Can't tween between different images: " .. self.imageId .. ' and ' .. o2.imageId)
 
   assert(o1.pivotX == o2.pivotX, "Make sure the pivot points are the same")
   assert(o1.pivotY == o2.pivotY, "Make sure the pivot points are the same")
@@ -451,6 +382,8 @@ function Animation.tweenObject(o1, o2, percent, method)
   }
 end
 
+
 function Animation.objectToString(object)
   return object.x or 'nil' .. "\t" .. object.y or 'nil'  .. "\t" .. object.imageId or 'nil' .. "\t" .. object.folderId or 'nil' .. "\t" .. object.pivotX or 'nil' .. "\t" .. object.pivotY or 'nil' .. "\t" .. object.angle or 'nil' .. "\t" .. object.spinDir or 'nil'
 end
+

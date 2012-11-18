@@ -47,7 +47,7 @@ runAnim = spriter:getAnim("run")
 runAnim.tween = false
 ```
 
-``lua
+```lua
 -- Change animation speed
 function love.update(dt)
   local animDt = dt * sprite.runSpeed

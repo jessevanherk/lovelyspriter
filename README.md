@@ -7,17 +7,8 @@ Built to support the latest version of Spriter, and replace
 [spriter-love2d](http://github.com/capmar/spriter-love2d).
 
 
-Bugs
-====
-
-Still very much in development.
-
-* Doesn't do tweening properly yet.
-
-
 Usage
 =====
-
 
 ```lua
 require("lovelyspriter")
@@ -41,14 +32,40 @@ end
 ```
 
 
+Extras
+======
+
+```lua
+-- Turn on drawing debugging information
+LovelySpriter.DRAW_BOUNDING    = true
+LovelySpriter.DRAW_PIVOT_POINT = true
+```
+
+```lua
+-- Toggle tweening
+runAnim = spriter:getAnim("run")
+runAnim.tween = false
+```
+
+``lua
+-- Change animation speed
+function love.update(dt)
+  local animDt = dt * sprite.runSpeed
+  runAnim:update(animDt)
+end
+```
+
+
 Todo
 ====
 
-* Remove middleclass dependency.
+* Completely remove dependency on middleclass
 * Write tests.
 * Add option to save/read SCML data from a lua cache – to improve load times.
+
 
 Contact
 =======
 
 Send feature request, bugs, feedback to @benhumphreys or via Github
+

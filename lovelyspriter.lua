@@ -21,9 +21,9 @@ LovelySpriter = class("LovelySpriter")
 LovelySpriter.VERSION = 4.1
 
 -- Debugging
-LovelySpriter.DRAW_BOUNDING = false
+LovelySpriter.DRAW_BOUNDING    = false
 LovelySpriter.DRAW_PIVOT_POINT = false
-LovelySpriter.DRAW_Z_INDEX = true
+LovelySpriter.DRAW_Z_INDEX     = false
 
 function LovelySpriter:initialize(xmlFile, customPathPrefix)
   local contents, size = love.filesystem.read(xmlFile)
@@ -116,6 +116,8 @@ function Animation:initialize(spriter, anim)
 
   self.currentTime     = 0
   --self.currentKeyFrame = 0
+  
+  self.percent = 0
 
   self.keyFrames       = {} -- indexed keyframeId, objectId
   self.objectTimelines = {} -- indexed objectId, keyframeId

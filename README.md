@@ -59,9 +59,12 @@ end
 Todo
 ====
 
+* Animations with single frames
+* Bone support
+* Easier interface for changing animation speed
 * Completely remove dependency on middleclass
-* Write tests.
-* Add option to save/read SCML data from a lua cache – to improve load times.
+* Write tests
+* Add option to save/read SCML data from a lua cache – to improve load times
 
 
 Contact

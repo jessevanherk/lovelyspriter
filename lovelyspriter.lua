@@ -23,11 +23,14 @@ LovelySpriter.VERSION = 4.1
 -- Debugging
 LovelySpriter.DRAW_BOUNDING = false
 LovelySpriter.DRAW_PIVOT_POINT = false
+LovelySpriter.DRAW_Z_INDEX = true
 
 function LovelySpriter:initialize(xmlFile, customPathPrefix)
   local contents, size = love.filesystem.read(xmlFile)
 
   local rawData = luaxml.collect(contents) -- Load XML into Lua datastruct
+
+  self.imageData = {}
 
   -- Check the file isn't too old or newer than us
   local version = tonumber(string.sub(rawData[2].xarg.generator_version, 2))
@@ -52,7 +55,7 @@ function LovelySpriter:initialize(xmlFile, customPathPrefix)
       local entity = v
       for i, v in ipairs(entity) do
         assert(v.label == "animation", "Unknown child, expecting 'animation', found '" .. v.label .. "'")
-        local a = Animation:new(v)
+        local a = Animation:new(self, v)
         if self.animations[a.name] then
           error("Multiple animations with the same name: " .. a.name)
         end
@@ -63,6 +66,12 @@ function LovelySpriter:initialize(xmlFile, customPathPrefix)
     end
   end
 end
+
+function LovelySpriter:getImage(folderId, imageId)
+  return self.imageData[folderId .. '-' .. imageId]
+end
+
+
 
 
 function LovelySpriter:getAnim(name)
@@ -78,14 +87,14 @@ function LovelySpriter:loadImages(folder)
     assert(file.label == "file", "Unknown child, expecting 'file', found '" .. file.label .. "'")
     local fileId = tonumber(file.xarg.id) + 1
     local key = folderId .. '-' .. fileId
-    imageData[key] = {
+    self.imageData[key] = {
       width  = file.xarg.width,
       height = file.xarg.height,
       name   = file.xarg.name,
       image  = lg.newImage(self.imagePathPrefix .. file.xarg.name),
     }
-    imageData[key].scaleX = imageData[key].image:getWidth() / imageData[key].width
-    imageData[key].scaleY = imageData[key].image:getHeight() / imageData[key].height
+    self.imageData[key].scaleX = self.imageData[key].image:getWidth() / self.imageData[key].width
+    self.imageData[key].scaleY = self.imageData[key].image:getHeight() / self.imageData[key].height
   end
 end
 
@@ -96,7 +105,9 @@ Animation = class("Animation")
 
 
 -- Create from raw XML object
-function Animation:initialize(anim)
+function Animation:initialize(spriter, anim)
+  self.spriter = spriter
+
   self.name     = anim.xarg.name   or error("Name required")
   -- Better name
   self.duration = anim.xarg.length or error("Duration required") -- in milliseconds
@@ -104,10 +115,10 @@ function Animation:initialize(anim)
   self.tween = true -- can turn this off
 
   self.currentTime     = 0
-  self.currentKeyFrame = 0
+  --self.currentKeyFrame = 0
 
-  self.keyFrames       = {}
-  self.objectTimelines = {}
+  self.keyFrames       = {} -- indexed keyframeId, objectId
+  self.objectTimelines = {} -- indexed objectId, keyframeId
 
   -- Parse mainline last
   local savedMainline = nil
@@ -129,10 +140,15 @@ function Animation:initialize(anim)
 
   self:_parseMainline(savedMainline)
 
+  self.currentKeyFrame = self.keyFrames[1]
+  self.nextKeyFrame    = self.keyFrames[2]
+
   assert(#self.keyFrames ~= 0, 'should have loaded some keyframes??')
 end
 
 
+-- Run after all the timelines are set up
+-- adds extra information to the existin objects
 function Animation:_parseMainline(mainline)
   for _, v in ipairs(mainline) do
     assert(v.label == "key", "Unknown child, expecting 'key', found '" .. v.label .. "'")
@@ -148,13 +164,18 @@ function Animation:_parseMainline(mainline)
         -- Transient object (See manual)
         error("TODO: Transient objects not yet supported")
       elseif v2.label == "object_ref" then
-        local objectId   = tonumber(v2.xarg.id) + 1
-        local timelineId = tonumber(v2.xarg.id) + 1
+        --local objectId   = tonumber(v2.xarg.id)       + 1
+        local objectId = tonumber(v2.xarg.timeline) + 1
+        local keyFrameIdCheck = tonumber(v2.xarg.key)      + 1
+        local zIndex     = tonumber(v2.xarg.z_index)  + 1
+
+        assert(keyFrameIdCheck == keyFrameId, "Key frames xarg does not match parent node's ID xarg")
+
+        -- Fill out most of the data from the preloaded object timeline
         keyFrame.objects[objectId] = self.objectTimelines[objectId][keyFrameId]
-          --timelineId = v2.xarg.timeline,
-        keyFrame.objects[objectId].zIndex = tonumber(v2.xarg.z_index) or error("Z-index undef")
-          --zIndex     = v2.xarg.z_index,
-        --}
+
+        if keyFrame.objects[objectId].zIndex then error("Zindex already defined!") end
+        keyFrame.objects[objectId].zIndex = zIndex or error("Z-index undef")
       else
         error("Unknown child, expecting 'object' or 'object_ref', found '" .. v.label .. "'")
       end
@@ -181,9 +202,9 @@ function Animation:_parseObjectTimeline(timeline)
 
     for _, v2 in ipairs(v) do
       assert(v2.label == "object", "Unknown child, expecting 'object', found '" .. v.label .. "'")
-      for key, value in pairs(v2.xarg) do
-        print(key, "\t", value)
-      end
+      --for key, value in pairs(v2.xarg) do
+        --print(key, "\t", value)
+      --end
 
       local objProps = v2.xarg
 
@@ -239,18 +260,28 @@ end
 function Animation:draw(...)
   if self.tween then
     Animation._drawTweenedFrames(
+      self.spriter,
       self.currentKeyFrame,
       self.nextKeyFrame,
       self.percent,
       ...
     )
   else
-    Animation._drawFrame(self.currentKeyFrame, ...)
+    Animation._drawFrame(
+      self.spriter,
+      self.currentKeyFrame,
+      ...
+    )
   end
 end
 
 
-function Animation._drawFrame(frame, x, y, r, sx, sy, ox, oy)
+local function zSort(a, b)
+  return a.zIndex < b.zIndex
+end
+
+
+function Animation._drawFrame(spriter, frame, x, y, r, sx, sy, ox, oy)
 	r  = r  or 0
 	sx = sx or 1
 	sy = sy or sx
@@ -265,7 +296,7 @@ function Animation._drawFrame(frame, x, y, r, sx, sy, ox, oy)
 
     -- Sort objects in z-depth order
     local objects = frame.objects
-    table.sort(objects, function(a, b) return a.zIndex < b.zIndex end)  
+    table.sort(objects, zSort)
 
     for _, object in ipairs(objects) do
       Animation.drawObject(object)
@@ -274,7 +305,7 @@ function Animation._drawFrame(frame, x, y, r, sx, sy, ox, oy)
 end
 
 
-function Animation._drawTweenedFrames(frame1, frame2, percent, x, y, r, sx, sy, ox, oy)
+function Animation._drawTweenedFrames(spriter, frame1, frame2, percent, x, y, r, sx, sy, ox, oy)
   assert(frame1, "need frame")
   assert(frame2, "need frame")
 
@@ -292,16 +323,14 @@ function Animation._drawTweenedFrames(frame1, frame2, percent, x, y, r, sx, sy, 
 
     -- Sort objects in z-depth order
     local objects1 = frame1.objects
-    table.sort(objects1, function(a, b) return a.zIndex < b.zIndex end)  
-
     local objects2 = frame2.objects
-    table.sort(objects2, function(a, b) return a.zIndex < b.zIndex end)  
 
-    assert(#objects1 == #objects2)
+    table.sort(objects1, zSort)
+    table.sort(objects2, zSort)
 
     for i = 1, #objects1 do
       tweened = Animation.tweenObject(objects1[i], objects2[i], percent)
-      Animation.drawObject(tweened)
+      Animation.drawObject(spriter, tweened)
     end
 	lg.pop()
 end
@@ -309,8 +338,8 @@ end
 
 -------------------------------------------------------------------------------
 
-function Animation.drawObject(object)
-  local img = getImage(object.folderId, object.imageId)
+function Animation.drawObject(spriter, object)
+  local img = spriter:getImage(object.folderId, object.imageId)
 
   lg.push()
     if LovelySpriter.DRAW_BOUNDING then
@@ -334,6 +363,11 @@ function Animation.drawObject(object)
 
     lg.setColor(255,255,255,255)
     lg.draw(img.image, object.x, object.y, r, 1, 1, pX, pY)
+
+    if LovelySpriter.DRAW_Z_INDEX then
+      lg.setColor(0,0,0,255)
+      lg.print(object.zIndex, object.x, object.y)
+    end
   lg.pop()
 end
 
@@ -369,6 +403,8 @@ function Animation.tweenObject(o1, o2, percent, method)
   assert(o1.pivotX == o2.pivotX, "Make sure the pivot points are the same")
   assert(o1.pivotY == o2.pivotY, "Make sure the pivot points are the same")
 
+  assert(o1.zIndex == o2.zIndex, "z index of tweened objects must be the same")
+
   -- object:new
   return {
     x        = mix(o1.x, o2.x, percent),
@@ -378,7 +414,8 @@ function Animation.tweenObject(o1, o2, percent, method)
     pivotX   = o1.pivotX, --mix(o1.pivotX, o2.pivotX, percent),
     pivotY   = o1.pivotY, --mix(o1.pivotY, o2.pivotY, percent),
     angle    = mix(o1.angle, rotation(o1.angle, o2.angle, o1.spinDir), percent),
-    spinDir  = o1.spinDir
+    spinDir  = o1.spinDir,
+    zIndex   = o1.zIndex,
   }
 end
 

@@ -1,6 +1,8 @@
 lovelyspriter
 =============
 
+**Warning: Changes in Love2d and Spriter's SCML format mean this no longer works. It is just here for historical purposes. If you want to fork the project and make it your own, go for it.**
+
 Love2d library for [Spriter](http://www.brashmonkey.com/spriter.htm)
 
 Built to support the latest version of Spriter, and replace
@@ -54,21 +56,3 @@ function love.update(dt)
   runAnim:update(animDt)
 end
 ```
-
-
-Todo
-====
-
-* Animations with single frames
-* Bone support
-* Easier interface for changing animation speed
-* Completely remove dependency on middleclass
-* Write tests
-* Add option to save/read SCML data from a lua cache – to improve load times
-
-
-Contact
-=======
-
-Send feature request, bugs, feedback to @benhumphreys or via Github
-
